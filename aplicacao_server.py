@@ -34,16 +34,33 @@ class Server:
     def __init__(self,serialname):
         self.port = serialname
         self.com1 = enlace(self.port)
-        self.lastPack = 0
+        self.currentPack = 0
         self.datagrams = []
         self.bytes = b''
+        self.head = b''
+        self.sizeHead = 0
         self.com1.enable()
         
 
     def nextPack(self):
-        self.lastPack+=1
+        """Método de incrementação do pack a ser enviado"""
+        self.currentPack+=1
+
+    def readHead(self):
+        """Método que realiza leitura do head do pacote recebido"""
+        self.head,self.sizeHead = self.com1.getData(10)
+
+    def readPayload(self):
+        """Método que realiza leitura do payload do pacote recebido"""
+        self.payload,self.sizepayload = self.com1.getData(self.head[7])
+
+    def readEOP(self):
+        """Método que realiza leitura do EOP do pacote recebido"""
+        self.eop,sizeeop = self.com1.getData(4)
 
     def handShake(self):
+        """Método de asserção do handshake, garantindo previamente a comunicação
+        entre client e server"""
         while True:
             try:
                 print("Esperando 1 byte de sacrifício...\n")        
@@ -76,58 +93,94 @@ class Server:
             except Exception as erro:
                 print(erro)
                 self.com1.disable()
-                break        
+                break   
+
+    def sendAcknowledge(self,status):
+        """Método de envio da mensagem de Acknowledge, confirmando se o pacote foi bem recebido
+        ou solicitando um possível reenvio"""
+        if status=="sucesso":
+            print("Pacote recebido com sucesso, mande o próximo...\n")
+            self.nextPack()
+            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("ok"))
+            time.sleep(0.1)
+        elif status=="ultimo":
+            print("Último Pacote recebido com sucesso\n")
+            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("ok"))
+            time.sleep(0.8)
+        elif status=="sizeError":
+            print("\n------------------------------------------------------------")
+            print("Recebi arquivo com tamanho diferente...")
+            print(f"Recebi algo maior que os {self.sizepayload} bytes esperados...")
+            print("Por favor reenvie...")
+            print("------------------------------------------------------------\n")
+            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
+            self.com1.rx.clearBuffer()
+            time.sleep(3)
+        elif status=="packError":
+            print("\n---------------------------------------")
+            print("Recebi um pacote diferente...")
+            print(f"Pacote recebido: {self.head[6]}")
+            print(f"Pacote esperado: {self.currentPack+1}")
+            print("Por favor reenvie")
+            print("---------------------------------------\n")
+            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
+            self.com1.rx.clearBuffer()
+            time.sleep(3)
+
+    def check_current_Pack_is_Right(self):
+        """Método verificação se o pacote informado no head corresponde ao esperado"""
+        if self.head[6]==self.currentPack:
+            return True
+        return False
+
+    def check_EOP_in_right_place(self):
+        """Método de verificação da posição do EOP"""
+        if self.eop == datagram.Datagram().EOP:
+            return True
+        return False
+
+    def check_if_is_the_last_pack(self):
+        """Método de verificação se é o último pacote a ser receber"""
+        if self.head[5]==self.currentPack+1:
+            return True
+        return False
+
+    def mountFile(self):
+        """Método de montagem dos bytes para formação do arquivo"""
+        print("Salvando dados no arquivo")
+        f = open("recebida.png",'wb')
+        f.write(self.bytes)
+        f.close()
 
     def receiveFile(self):
+        """Método main. Utiliza todos os métodos acima de maneira a cumprir o propósito do
+        projeto"""
         if self.handShake()==True:
             while True:
                 try:
-                    print(f"Recebendo pacote n°{self.lastPack+1}...")
-                    head, sizeHead = self.com1.getData(10)
-                    if head[6]==self.lastPack:
-                        payload,sizepayload = self.com1.getData(head[7])
-                        eop,sizeeop = self.com1.getData(4)
-                        if head[5]==self.lastPack+1:
-                            if eop == datagram.Datagram().EOP:
-                                print("Último Pacote recebido com sucesso\n")
-                                self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("ok"))
-                                time.sleep(0.8)
-                                self.bytes+=payload
+                    print(f"Recebendo pacote n°{self.currentPack+1}...")
+                    self.readHead()
+                    if self.check_current_Pack_is_Right():
+                        self.readPayload()
+                        self.readEOP()
+                        if self.check_if_is_the_last_pack():
+                            if self.check_EOP_in_right_place():
+                                self.sendAcknowledge("ultimo")
+                                self.bytes+=self.payload
                                 print("Encerrando Comunicação...\n")
                                 self.mountFile()
                                 self.com1.disable()
                                 break
-                        elif eop == datagram.Datagram().EOP:
-                            print("Pacote recebido com sucesso, mande o próximo...\n")
-                            self.nextPack()
-                            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("ok"))
-                            time.sleep(0.1)
-                            self.bytes+=payload
-                            
+                        elif self.check_EOP_in_right_place():
+                            self.sendAcknowledge("sucesso")
+                            self.bytes+=self.payload
                         else:
-                            print("\n------------------------------------------------------------")
-                            print("Recebi arquivo com tamanho diferente...")
-                            print(f"Recebi algo maior que os {sizepayload} bytes esperados...")
-                            print("Por favor reenvie...")
-                            print("------------------------------------------------------------\n")
-                            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
-                            self.com1.rx.clearBuffer()
-                            time.sleep(3)
+                            self.sendAcknowledge("sizeError")
                             continue
-
                     else:
-                        print("\n---------------------------------------")
-                        print("Recebi um pacote diferente...")
-                        print(f"Pacote recebido: {head[6]}")
-                        print(f"Pacote esperado: {self.lastPack+1}")
-                        print("Por favor reenvie")
-                        print("---------------------------------------\n")
-                        self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
-                        self.com1.rx.clearBuffer()
-                        time.sleep(3)
+                        self.sendAcknowledge("packError")
                         continue
                                 
-                        
                 except KeyboardInterrupt:
                     print("Interrupção Forçada")
                     self.com1.disable()
@@ -137,14 +190,7 @@ class Server:
                     self.com1.disable()
                     break
                 
-    def mountFile(self):
-        print("Salvando dados no arquivo")
-        f = open("recebida.jpg",'wb')
-        f.write(self.bytes)
-        f.close()
-
-
-    #so roda o main quando for executado do terminal ... se for chamado dentro de outro modulo nao roda
+#So roda o main quando for executado do terminal ... se for chamado dentro de outro modulo nao roda
 if __name__ == "__main__":
     s = Server(serialName)
     s.receiveFile()

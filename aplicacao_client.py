@@ -7,14 +7,9 @@
 ####################################################
 
 
-#esta é a camada superior, de aplicação do seu software de comunicação serial UART.
-#para acompanhar a execução e identificar erros, construa prints ao longo do código! 
-
 from client.enlace import *
 import time
 import numpy as np
-import sys
-import random
 import operations.datagram as datagram
 import operations.handshake as handshake
 import operations.packagetool as packagetool
@@ -34,7 +29,7 @@ class Client:
         self.port = serialname
         self.com1 = enlace(self.port)
         self.filepath = filepath
-        self.lastPack = 0
+        self.currentPack = 0
         self.datagrams = []
         self.acknowledge = packagetool.Acknowledge().buildAcknowledge("ok")
         self.caso = int(input("""Qual o caso deseja simular?
@@ -44,13 +39,18 @@ class Client:
         self.com1.enable()
 
     def nextPack(self):
-        self.lastPack+=1
+        """Método de incrementação do pack a ser enviado"""
+        self.currentPack+=1
 
     def buildDatagrams(self):
+        """Método de construção dos datagramas ao receber o caminho do arquivo a ser 
+        transmitido"""
         datagramsConstructor = packagetool.Packagetool(self.filepath)
         self.datagrams = datagramsConstructor.buildDatagrams()
 
     def handShake(self):
+        """Método de asserção do handshake, garantindo previamente a comunicação
+        entre client e server"""
         while True:
             try:
                 time.sleep(.2)
@@ -89,43 +89,67 @@ class Client:
                 print(erro)
                 self.com1.disable()
                 break
+        
+    def casoErroPacote(self):
+        """Método que implementa o caso de envio errado de um número de pacote no head
+        ao esperado pelo server (em termos de sucessividade)"""
+        acknowledge, sizeAck = self.com1.getData(14)
+        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
+            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
+            print(f"Enviando Pacote n°{self.currentPack+1}...             \n")
+            self.com1.sendData(self.datagrams[2])
+            time.sleep(.8)
+            self.nextPack()
+
+    def casoErroPayload(self):
+        """Método que implementa o caso de envio incorreto do tamanho do payload
+        informado no head em relação ao trnasmitido no pacote"""
+        acknowledge, sizeAck = self.com1.getData(14)
+        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
+            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
+            print(f"Enviando Pacote n°{self.currentPack+1}...                               \n")
+            lista = list(self.datagrams[self.currentPack])
+            lista[7]=36
+            lista = bytes(lista)
+            self.com1.sendData(lista)
+            time.sleep(.8)
+            self.nextPack()
     
-    def sentFile(self):
+    def sendCurrentpack(self):
+        """Método de envio do pacote atual"""
+        print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
+        print(f"Enviando Pacote n°{self.currentPack+1}...                               \n")
+        self.com1.sendData(self.datagrams[self.currentPack])
+        time.sleep(.1)
+        #self.com1.rx.clearBuffer()
+        self.nextPack()
+
+    def sendPackaagain(self):
+        """Método de reenvio do pacote alertado como enviado incorretamente ao
+        servidor"""
+        print("-------------------------------------------------------------------------")
+        print(f"Ocorreu algum erro durante a transmissão do pacote nº {self.currentPack}...")
+        print("Reenviando ao server...")
+        print("--------------------------------------------------------------------------\n")
+        self.com1.sendData(self.datagrams[self.currentPack-1])
+        time.sleep(3)
+
+    def sendFile(self):
+        """Método main. Utiliza todos os métodos acima de maneira a cumprir o propósito do
+        projeto"""
         if self.handShake()==True:
             self.buildDatagrams()
             print(f"Estaremos enviando {len(self.datagrams)} pacotes...")
             time.sleep(2)
             while True:
                 try:
-                    if self.lastPack==0:
-                        print(f"Enviando Pacote n°{self.lastPack+1}...                                 \n")
-                        self.com1.sendData(self.datagrams[self.lastPack])
-                        time.sleep(.1)
-                        self.nextPack()
-
-                    if self.caso==2 and (self.lastPack==27 or self.lastPack==37):
-                        acknowledge, sizeAck = self.com1.getData(14)
-                        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
-                            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
-                            print(f"Enviando Pacote n°{self.lastPack+1}...             \n")
-                            self.com1.sendData(self.datagrams[2])
-                            time.sleep(.8)
-                            self.nextPack()
-                            #self.caso=1
+                    if self.caso==2 and (self.currentPack==27 or self.currentPack==37):
+                        self.casoErroPacote()
                         
-                    elif self.caso==3 and self.lastPack==37:
-                        acknowledge, sizeAck = self.com1.getData(14)
-                        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
-                            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
-                            print(f"Enviando Pacote n°{self.lastPack+1}...                               \n")
-                            lista = list(self.datagrams[self.lastPack])
-                            lista[7]=36
-                            lista = bytes(lista)
-                            self.com1.sendData(lista)
-                            time.sleep(.8)
-                            self.nextPack()
+                    elif self.caso==3 and self.currentPack==37:
+                        self.casoErroPayload()
                         
-                    elif self.lastPack==len(self.datagrams):
+                    elif self.currentPack==len(self.datagrams):
                         print("Último pacote enviado\n")
                         print("Encerrando comunicação...")
                         self.com1.disable()
@@ -134,20 +158,9 @@ class Client:
                     else:
                         acknowledge, sizeAck = self.com1.getData(14)
                         if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
-                            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
-                            print(f"Enviando Pacote n°{self.lastPack+1}...                               \n")
-                            self.com1.sendData(self.datagrams[self.lastPack])
-                            time.sleep(.1)
-                            self.com1.rx.clearBuffer()
-                            self.nextPack()
-
+                            self.sendCurrentpack()
                         elif acknowledge == packagetool.Acknowledge().buildAcknowledge("erro"):
-                            print("-------------------------------------------------------------------------")
-                            print(f"Ocorreu algum erro durante a transmissão do pacote nº {self.lastPack}...")
-                            print("Reenviando ao server...")
-                            print("--------------------------------------------------------------------------\n")
-                            self.com1.sendData(self.datagrams[self.lastPack-1])
-                            time.sleep(3)
+                            self.sendPackaagain()
                         else:
                             print("Ocorreu um erro bastante estranho...")
                             print("Encerrando comunicação")
@@ -163,8 +176,7 @@ class Client:
                     break
 
         
-
     #so roda o main quando for executado do terminal ... se for chamado dentro de outro modulo nao roda
 if __name__ == "__main__":
-    c = Client(serialName,"./image.jpg")
-    c.sentFile()
+    c = Client(serialName,"./image.png")
+    c.sendFile()
