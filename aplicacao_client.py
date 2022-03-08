@@ -54,20 +54,23 @@ class Client:
         while True:
             try:
                 time.sleep(.2)
-                print("Byte de sacríficio...")
+                print("Enviando byte de sacríficio...")
                 self.com1.sendData(b'00')
                 time.sleep(1) 
 
                 self.handshake = handshake.Handshake("client").buildHandshake()
-                print("Enviando Handshake para Server...")
+                print("\nEnviando Handshake para Server...")
                 self.com1.sendData(self.handshake)
+                time.sleep(.1)
                 serverHandshake, nRx = self.com1.getData(14) #tamanho fixo do handshake
                 if serverHandshake == handshake.Handshake("server").buildHandshake():
                     print("\nHandshake recebido...")
-                    print("\nIniciando Transmissão")
+                    print("\n--------------------------")
+                    print("Iniciando Transmissão")
+                    print("--------------------------")
                     return True
                 elif serverHandshake==[-1]:
-                    answer = input("Servidor inativo. Tentar novamente? S/N ")
+                    answer = input("\nServidor inativo. Tentar novamente? S/N ")
                     if answer.lower()=="s":
                         continue
                     else:
@@ -97,23 +100,32 @@ class Client:
                     if self.lastPack==0:
                         print(f"Enviando Pacote n°{self.lastPack+1}...                                 \n")
                         self.com1.sendData(self.datagrams[self.lastPack])
+                        time.sleep(.1)
                         self.nextPack()
 
-                    elif self.caso==2 and self.lastPack==27:
-                        print("Caso 2...")
-                        print(f"Enviando Pacote n°{self.lastPack+1}...             \n")
-                        self.com1.sendData(self.datagrams[self.lastPack-3])
-                        self.nextPack()
-                        self.caso=1
+                    if self.caso==2 and (self.lastPack==27 or self.lastPack==37):
+                        acknowledge, sizeAck = self.com1.getData(14)
+                        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
+                            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
+                            print(f"Enviando Pacote n°{self.lastPack+1}...             \n")
+                            self.com1.sendData(self.datagrams[2])
+                            time.sleep(.8)
+                            self.nextPack()
+                            #self.caso=1
                         
-                    elif self.caso==3 and self.lastPack==57:
-                        print(f"Enviando Pacote n°{self.lastPack+1}...                               \n")
-                        self.com1.sendData(self.datagrams[self.lastPack])
-                        self.caso=1
+                    elif self.caso==3 and self.lastPack==37:
+                        acknowledge, sizeAck = self.com1.getData(14)
+                        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
+                            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
+                            print(f"Enviando Pacote n°{self.lastPack+1}...                               \n")
+                            lista = list(self.datagrams[self.lastPack])
+                            lista[7]=36
+                            lista = bytes(lista)
+                            self.com1.sendData(lista)
+                            time.sleep(.8)
+                            self.nextPack()
                         
                     elif self.lastPack==len(self.datagrams):
-                        # print(f"Enviando Pacote n°{self.lastPack+1}...")
-                        # self.com1.sendData(self.datagrams[self.lastPack])
                         print("Último pacote enviado\n")
                         print("Encerrando comunicação...")
                         self.com1.disable()
@@ -121,23 +133,21 @@ class Client:
 
                     else:
                         acknowledge, sizeAck = self.com1.getData(14)
-                        print(self.acknowledge)
-                        print(packagetool.Acknowledge().buildAcknowledge("erro"))
-
-                        if self.acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
+                        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
+                            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
                             print(f"Enviando Pacote n°{self.lastPack+1}...                               \n")
                             self.com1.sendData(self.datagrams[self.lastPack])
-                            self.nextPack()
-                            self.acknowledge = acknowledge
-
-                        elif self.acknowledge == packagetool.Acknowledge().buildAcknowledge("erro"):
-                            print(f"Ocorreu algum erro durante a transmissão do pacote nº{self.lastPack-1}...")
-                            print("Reenviando ao server...")
-                            print(self.datagrams[self.lastPack-2][6])
-                            self.com1.sendData(self.datagrams[self.lastPack-2])
-                            self.acknowledge = acknowledge
+                            time.sleep(.1)
                             self.com1.rx.clearBuffer()
-                            time.sleep(1)
+                            self.nextPack()
+
+                        elif acknowledge == packagetool.Acknowledge().buildAcknowledge("erro"):
+                            print("-------------------------------------------------------------------------")
+                            print(f"Ocorreu algum erro durante a transmissão do pacote nº {self.lastPack}...")
+                            print("Reenviando ao server...")
+                            print("--------------------------------------------------------------------------\n")
+                            self.com1.sendData(self.datagrams[self.lastPack-1])
+                            time.sleep(3)
                         else:
                             print("Ocorreu um erro bastante estranho...")
                             print("Encerrando comunicação")
@@ -156,5 +166,5 @@ class Client:
 
     #so roda o main quando for executado do terminal ... se for chamado dentro de outro modulo nao roda
 if __name__ == "__main__":
-    c = Client(serialName,"./image.png")
+    c = Client(serialName,"./image.jpg")
     c.sentFile()

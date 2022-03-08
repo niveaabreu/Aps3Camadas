@@ -50,15 +50,17 @@ class Server:
                 rxBuffer, nRx = self.com1.getData(1)
                 self.com1.rx.clearBuffer()
                 print("Recebido...")
-                time.sleep(.1)
 
                 self.handshake = handshake.Handshake("server").buildHandshake()
-                print("Esperando Handshake do Client...")
+                print("\nEsperando Handshake do Client...")
                 clientHandshake, nRx = self.com1.getData(14) #tamanho fixo do handshake
                 if clientHandshake == handshake.Handshake("client").buildHandshake():
                     print("\nHandshake recebido...")
                     self.com1.sendData(self.handshake)
-                    print("\nIniciando Transmissão")
+                    time.sleep(0.1)
+                    print("\n--------------------------")
+                    print("Iniciando Transmissão")
+                    print("--------------------------")
                     return True
                     
                 else:
@@ -84,43 +86,45 @@ class Server:
                     head, sizeHead = self.com1.getData(10)
                     if head[6]==self.lastPack:
                         payload,sizepayload = self.com1.getData(head[7])
-                        if sizepayload==head[7]:
-                            eop,sizeeop = self.com1.getData(4)
-                            if head[5]==self.lastPack+1:
+                        eop,sizeeop = self.com1.getData(4)
+                        if head[5]==self.lastPack+1:
+                            if eop == datagram.Datagram().EOP:
                                 print("Último Pacote recebido com sucesso\n")
                                 self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("ok"))
+                                time.sleep(0.8)
                                 self.bytes+=payload
                                 print("Encerrando Comunicação...\n")
                                 self.mountFile()
                                 self.com1.disable()
                                 break
-                            elif eop == datagram.Datagram().EOP:
-                                print("Pacote recebido com sucesso, mande o próximo...\n")
-                                self.nextPack()
-                                self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("ok"))
-                                time.sleep(0.5)
-                                self.bytes+=payload
-                                
-        
-                            else:
-                                print("Recebi algo estranho...")
-                                print("Por favor reenvie")
-                                self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
-                                continue
+                        elif eop == datagram.Datagram().EOP:
+                            print("Pacote recebido com sucesso, mande o próximo...\n")
+                            self.nextPack()
+                            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("ok"))
+                            time.sleep(0.1)
+                            self.bytes+=payload
+                            
                         else:
+                            print("\n------------------------------------------------------------")
                             print("Recebi arquivo com tamanho diferente...")
-                            print(f"Tamanho esperado: {head[7]} bytes")
-                            print(f"Tamanho recebido: {sizepayload} bytes")
+                            print(f"Recebi algo maior que os {sizepayload} bytes esperados...")
                             print("Por favor reenvie...")
+                            print("------------------------------------------------------------\n")
                             self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
-                            time.sleep(.5)
+                            self.com1.rx.clearBuffer()
+                            time.sleep(3)
                             continue
+
                     else:
+                        print("\n---------------------------------------")
                         print("Recebi um pacote diferente...")
                         print(f"Pacote recebido: {head[6]}")
-                        print(f"Pacote esperado: {self.lastPack}")
-                        print("Por favor reenvie\n")
+                        print(f"Pacote esperado: {self.lastPack+1}")
+                        print("Por favor reenvie")
+                        print("---------------------------------------\n")
                         self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
+                        self.com1.rx.clearBuffer()
+                        time.sleep(3)
                         continue
                                 
                         
@@ -135,7 +139,7 @@ class Server:
                 
     def mountFile(self):
         print("Salvando dados no arquivo")
-        f = open("recebida.png",'wb')
+        f = open("recebida.jpg",'wb')
         f.write(self.bytes)
         f.close()
 
