@@ -13,5 +13,3 @@ class Handshake:
             self.datagram.head(1,1,0)
         return self.datagram.datagram()
 
-# m=Handshake("client").buildHandshake()
-# print(m)

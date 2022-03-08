@@ -38,22 +38,23 @@ class Datagram:
         self.HEAD = self.tipo+self.origem+self.destino+self.totalSize+self.numberOfPackages+currentPack+datasize+integrity+self.remainingSize
 
     def payload(self, payload):
+        """Método de definição do payload em um pacote"""
         self.PAYLOAD = payload
         self.dataSize = len(payload)
 
-    def bytesNotIntegrity(self,bool=False):
-        if bool:
+    def nextPackage(self):
+        """Método de incrementação no pacote atual a ser enviado"""
+        self.currentPack+=1
+
+    def bytesAreIntegrity(self,bool=True):
+        """Método de verificação da integridade dos dados"""
+        if not bool:
             self.integrity=0
         else:
-            self.integrity=1
-
-    def nextPackage(self):
-        self.currentPack+=1
-    
-    def getCurrentPackage(self):
-        return self.currentPack
+            self.integrity=1    
 
     def datagram(self):
+        """Método de criação do datagrama conforme especificado"""
         finalDatagram = self.HEAD+self.PAYLOAD+self.EOP
         try:
             assert len(finalDatagram)<=128

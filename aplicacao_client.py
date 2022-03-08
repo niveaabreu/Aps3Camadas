@@ -6,6 +6,9 @@
 #Aplicação
 ####################################################
 
+import json
+from sys import argv
+
 
 from client.enlace import *
 import time
@@ -23,6 +26,11 @@ import operations.packagetool as packagetool
 #serialName = "/dev/tty0"           # Ubuntu (variacao de)
 #serialName = "/dev/tty.usbmodem1411" # Mac    (variacao de)
 serialName = "COM3"                  # Windows(variacao de)
+
+jsonfile = "./files/notes.json"
+pngfile = "./files/image.png"
+
+file = pngfile
   
 class Client:
     def __init__(self,serialname,filepath):
@@ -97,7 +105,7 @@ class Client:
         if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
             print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
             print(f"Enviando Pacote n°{self.currentPack+1}...             \n")
-            self.com1.sendData(self.datagrams[2])
+            self.com1.sendData(self.datagrams[self.currentPack+2])
             time.sleep(.8)
             self.nextPack()
 
@@ -143,10 +151,12 @@ class Client:
             time.sleep(2)
             while True:
                 try:
-                    if self.caso==2 and (self.currentPack==27 or self.currentPack==37):
+                    if self.currentPack==0:
+                        self.sendCurrentpack()
+                    elif self.caso==2 and (self.currentPack==3 or self.currentPack==7):
                         self.casoErroPacote()
                         
-                    elif self.caso==3 and self.currentPack==37:
+                    elif self.caso==3 and self.currentPack==4:
                         self.casoErroPayload()
                         
                     elif self.currentPack==len(self.datagrams):
@@ -178,5 +188,5 @@ class Client:
         
     #so roda o main quando for executado do terminal ... se for chamado dentro de outro modulo nao roda
 if __name__ == "__main__":
-    c = Client(serialName,"./image.png")
+    c = Client(serialName,file)
     c.sendFile()

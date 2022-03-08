@@ -6,7 +6,6 @@
 #Aplicação
 ####################################################
 
-
 #esta é a camada superior, de aplicação do seu software de comunicação serial UART.
 #para acompanhar a execução e identificar erros, construa prints ao longo do código! 
 
@@ -29,7 +28,10 @@ import operations.packagetool as packagetool
 #serialName = "/dev/tty.usbmodem1411" # Mac    (variacao de)
 serialName = "COM5"                  # Windows(variacao de)
 
+jsonfile = "./files/recebido.json"
+pngfile = "./files/recebido.png"
 
+file = pngfile
 class Server:
     def __init__(self,serialname):
         self.port = serialname
@@ -148,7 +150,7 @@ class Server:
     def mountFile(self):
         """Método de montagem dos bytes para formação do arquivo"""
         print("Salvando dados no arquivo")
-        f = open("recebida.png",'wb')
+        f = open(file,'wb')
         f.write(self.bytes)
         f.close()
 

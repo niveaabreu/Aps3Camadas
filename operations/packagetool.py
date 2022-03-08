@@ -50,16 +50,13 @@ class Acknowledge:
     def buildAcknowledge(self,condition):
         "Constroi o acknowledge para envio"
         if condition=="ok":
-            self.datagram.bytesNotIntegrity()
+            self.datagram.bytesAreIntegrity(True)
             self.datagram.head(3,1,0)
         elif condition=="erro":
-            self.datagram.bytesNotIntegrity(True)
+            self.datagram.bytesAreIntegrity(False)
             self.datagram.head(3,1,0)
         return self.datagram.datagram()
 
-# image = "operations/image.png"
-# x = Packagetool(image)
-# print(list(x.buildDatagrams()))
 
 
 
