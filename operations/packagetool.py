@@ -47,15 +47,18 @@ class Acknowledge:
     def __init__(self):
         self.datagram = Datagram()
 
-    def buildAcknowledge(self,condition):
+    def buildAcknowledge(self,condition,packIndex = 0):
         "Constroi o acknowledge para envio"
         if condition=="ok":
             self.datagram.bytesAreIntegrity(True)
+            self.datagram.packIndexError(packIndex)
             self.datagram.head(3,1,0)
         elif condition=="erro":
             self.datagram.bytesAreIntegrity(False)
+            self.datagram.packIndexError(packIndex)
             self.datagram.head(3,1,0)
         return self.datagram.datagram()
+
 
 
 

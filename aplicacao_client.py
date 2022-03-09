@@ -30,7 +30,7 @@ serialName = "COM3"                  # Windows(variacao de)
 jsonfile = "./files/notes.json"
 pngfile = "./files/image.png"
 
-file = pngfile
+file = jsonfile
   
 class Client:
     def __init__(self,serialname,filepath):
@@ -39,7 +39,7 @@ class Client:
         self.filepath = filepath
         self.currentPack = 0
         self.datagrams = []
-        self.acknowledge = packagetool.Acknowledge().buildAcknowledge("ok")
+        self.acknowledge = b''
         self.caso = int(input("""Qual o caso deseja simular?
         1 - Caso de Sucesso de Transmissão ou TIMEOUT
         2 - Caso de erro de pacote
@@ -97,31 +97,68 @@ class Client:
                 print(erro)
                 self.com1.disable()
                 break
-        
+
+    def readAcknowledge(self):
+        """Método de leitura do acknowledge advindo do server, e redireciona para
+        ação a se tomar"""
+        self.acknowledge, sizeAck = self.com1.getData(10)
+        if self.acknowledge == packagetool.Acknowledge().buildAcknowledge("ok")[:10]:
+            self.acknowledge, sizeAck = self.com1.getData(5)
+            if self.acknowledge == packagetool.Acknowledge().buildAcknowledge("ok")[10:]:
+                self.sendCurrentpack()
+                
+        elif self.acknowledge == packagetool.Acknowledge().buildAcknowledge("erro")[:10]:
+            self.sendPackaagain()
+        else:
+            print("Ocorreu um erro bastante estranho...")
+            print("Encerrando comunicação")
+            self.com1.disable()
+            exit()
+
+    def lastPack(self):
+        """Método de verificação se o pacote é o último a ser enviado"""
+        return self.currentPack==len(self.datagrams)
+
+    def isPackError(self):
+        """Método de verificação se é o caso de erro de envio do pacote"""
+        return self.caso==2 and (self.currentPack==3 or self.currentPack==7)
+
+    def isPayloadError(self):
+        """Método de verificação se é o caso de erro de envio do tamanho do payload"""
+        return self.caso==3 and self.currentPack==4
+    
+    def isFirstPack(self):
+        """Método de verificação se o pacote é o primeiro a ser enviado"""
+        return self.currentPack==0
+
     def casoErroPacote(self):
         """Método que implementa o caso de envio errado de um número de pacote no head
         ao esperado pelo server (em termos de sucessividade)"""
-        acknowledge, sizeAck = self.com1.getData(14)
-        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
-            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
-            print(f"Enviando Pacote n°{self.currentPack+1}...             \n")
-            self.com1.sendData(self.datagrams[self.currentPack+2])
-            time.sleep(.8)
-            self.nextPack()
+        self.acknowledge, sizeAck = self.com1.getData(10)
+        if self.acknowledge == packagetool.Acknowledge().buildAcknowledge("ok")[:10]:
+            self.acknowledge, sizeAck = self.com1.getData(5)
+            if self.acknowledge == packagetool.Acknowledge().buildAcknowledge("ok")[10:]:
+                print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
+                print(f"Enviando Pacote n°{self.currentPack+1}...             \n")
+                self.com1.sendData(self.datagrams[self.currentPack+2])
+                time.sleep(.8)
+                self.nextPack()
 
     def casoErroPayload(self):
         """Método que implementa o caso de envio incorreto do tamanho do payload
         informado no head em relação ao trnasmitido no pacote"""
-        acknowledge, sizeAck = self.com1.getData(14)
-        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
-            print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
-            print(f"Enviando Pacote n°{self.currentPack+1}...                               \n")
-            lista = list(self.datagrams[self.currentPack])
-            lista[7]=36
-            lista = bytes(lista)
-            self.com1.sendData(lista)
-            time.sleep(.8)
-            self.nextPack()
+        self.acknowledge, sizeAck = self.com1.getData(10)
+        if self.acknowledge == packagetool.Acknowledge().buildAcknowledge("ok")[:10]:
+            self.acknowledge, sizeAck = self.com1.getData(5)
+            if self.acknowledge == packagetool.Acknowledge().buildAcknowledge("ok")[10:]:
+                print("Acknowledge recebido! Autorizado envio do próximo pacote!                      ")
+                print(f"Enviando Pacote n°{self.currentPack+1}...                               \n")
+                lista = list(self.datagrams[self.currentPack])
+                lista[7]=36
+                lista = bytes(lista)
+                self.com1.sendData(lista)
+                time.sleep(.8)
+                self.nextPack()
     
     def sendCurrentpack(self):
         """Método de envio do pacote atual"""
@@ -135,47 +172,42 @@ class Client:
     def sendPackaagain(self):
         """Método de reenvio do pacote alertado como enviado incorretamente ao
         servidor"""
-        print("-------------------------------------------------------------------------")
-        print(f"Ocorreu algum erro durante a transmissão do pacote nº {self.currentPack}...")
-        print("Reenviando ao server...")
-        print("--------------------------------------------------------------------------\n")
-        self.com1.sendData(self.datagrams[self.currentPack-1])
+        self.acknowledge,sizeAck = self.com1.getData(5)
+        if self.acknowledge[1:] == packagetool.Acknowledge().buildAcknowledge("ok")[11:]:
+            print("-------------------------------------------------------------------------")
+            print(f"Ocorreu algum erro durante a transmissão do pacote nº {self.currentPack}...")
+            print("Reenviando ao server...")
+            print("--------------------------------------------------------------------------\n")
+            self.com1.sendData(self.datagrams[self.acknowledge[0]])
         time.sleep(3)
 
     def sendFile(self):
         """Método main. Utiliza todos os métodos acima de maneira a cumprir o propósito do
         projeto"""
-        if self.handShake()==True:
+        if self.handShake():
             self.buildDatagrams()
             print(f"Estaremos enviando {len(self.datagrams)} pacotes...")
             time.sleep(2)
             while True:
                 try:
-                    if self.currentPack==0:
+                    if self.isFirstPack():
                         self.sendCurrentpack()
-                    elif self.caso==2 and (self.currentPack==3 or self.currentPack==7):
+
+                    elif self.isPackError():
                         self.casoErroPacote()
                         
-                    elif self.caso==3 and self.currentPack==4:
+                    elif self.isPayloadError():
                         self.casoErroPayload()
                         
-                    elif self.currentPack==len(self.datagrams):
+                    elif self.lastPack():
                         print("Último pacote enviado\n")
                         print("Encerrando comunicação...")
                         self.com1.disable()
                         break
 
                     else:
-                        acknowledge, sizeAck = self.com1.getData(14)
-                        if acknowledge == packagetool.Acknowledge().buildAcknowledge("ok"):
-                            self.sendCurrentpack()
-                        elif acknowledge == packagetool.Acknowledge().buildAcknowledge("erro"):
-                            self.sendPackaagain()
-                        else:
-                            print("Ocorreu um erro bastante estranho...")
-                            print("Encerrando comunicação")
-                            self.com1.disable()
-                            break
+                        self.readAcknowledge()
+        
                 except KeyboardInterrupt:
                     print("Interrupção Forçada")
                     self.com1.disable()

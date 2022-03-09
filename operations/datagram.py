@@ -2,7 +2,7 @@ class Datagram:
     def __init__(self):
         self.HEAD  = b''
         self.PAYLOAD = b''
-        self.EOP = 0X10120327.to_bytes(4,byteorder="big") #digitos iniciais do numero de ouro
+        self.EOP = bytes([16,18,12,0]) #digitos iniciais do numero de ouro
         self.currentPack = 0
         self.dataSize  =  0
         self.integrity = 1
@@ -51,7 +51,10 @@ class Datagram:
         if not bool:
             self.integrity=0
         else:
-            self.integrity=1    
+            self.integrity=1  
+
+    def packIndexError(self,index):
+        self.PAYLOAD = index.to_bytes(1,byteorder="big")
 
     def datagram(self):
         """Método de criação do datagrama conforme especificado"""

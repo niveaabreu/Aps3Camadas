@@ -5,19 +5,39 @@
 * [Matheus Oliveira](https://github.com/matheus-1618)
 * [Nívea Abreu](https://github.com/niveaabreu)
 
-### Descrição:
-Implementação de um simulação client-server com envio e recebimento de ações que obedecem uma ordenação temporal real.
+## Descrição:
+Implementação de um simulação client-server com envio e recebimento de ações que obedecem uma ordenação temporal real, agora encapsulando o protocolo na forma de um datagrama, que tem em sua constituição três elementos fundamentais:
+
+- HEAD: Tem tamanho fixo de 10 bytes e leva informações importantes a cerca do conteúdo (payload) deste pacote, informando seu tipo, origem, destino, tamanho de dados transportados e afins.
+
+- PAYLOAD: Tem tamanho entre 0 e 128 bytes e transporta uma fração do arquivo total a ser transferido
+
+- EOP: 4 bytes fixos que apresentam o final do datagrama.
 
 
-Foi construído um código em Python para transmissão de um determinada quantidade de comandos(client) e recepção e reenvio do tamanho recebido (server) para assim certificar a comunicação serial.
+Para uma simulação adequada, adotou-se procedimentos para envio protocolar do arquivo:
 
+#### 1- HandShake
+Mensagem inicial enviada do client ao server e respondida pelo server ao client, para confirmação de possibilidade de comunicação entre os lados.
 
+#### 2- Fragmentação
+Após Handshake permite-se o envio do primeiro pacote (de muitos que foram fragmentados do arquivo a ser enviado) do client ao server.
+
+#### 3- Acknowledge
+A cada envio de pacote o server deve conferir se o pacote está de acordo com o especificado no HEAD (tamanho, sucessividade do pacote e etc) e assim informar ao client se está pronto para envio do próximo pacote, ou pedindo um reenvio de um determinado pacote que possa ter vindo a se perder ou corromper durante transmissão.
+
+## Simulação
 Foram simulados três tipos de casos:
-- SUCESSO DE TRANSMISSÃO: Envio de uma quantidade aleatória (entre 10 e 30) e sorteada de comandos de bytes a cada requisição do client, na qual o server deve receber e diferenciar os comandos enviando uma resposta em menos de 10 segundos do tamanho recebido, para que o client confirme que o tamanho de envio e de recebimento seja adequado.
+- SUCESSO DE TRANSMISSÃO: Envia o arquivo de forma adequada, confirmando o recebimento de Acknowledges e mantendo conexão com servidor a todo tempo.
 
-- ERRO DE TRANSMISSÃO: Situação em que após o server realizar o recebimento dos comandos, enviar uma quantidade errada de comandos para o client, gerando um erro de retransmissão de dados.
+- TIMEOUT: Client não recebe resposta do handshake do Server e pergunta ao usuário se ele deseja tentar o envio novamente, persistindo até que a conexão seja estabelecida ou finalizada.
 
-- CASO DE TIMEOUT: Situação na qual, após o client enviar os comandos, ele não recebe nenhuma resposta de volta do server em 10s, encerrando a comunicação.
+- ERRO DE TRANSMISSÃO DE PACOTE: Client envia um pacote não correspondente ao esperado pelo server (em termos de sucessividade), e dessa forma o Server reaje parando momentaneamente a a recepção enviando um acknowledge ao Client solicitando o reenvio do pacote desejado; o client então reenvia o pacote e a transmissão retorna de onde parou.
+
+- ERRO DE TRANSMISSÃO DE PAYLOAD: Client envia um pacote com tamanho de payload não correspondente ao esperado pelo server (maior ou menor ao lido pelo RX), e dessa forma o Server reaje parando momentaneamente a a recepção enviando um acknowledge ao Client solicitando o reenvio do pacote desejado; o client então reenvia o pacote e a transmissão retorna de onde parou.
+
+
+## Montagem
 
 Para montagem, use dois Arduinos uno e 5 jumpers, para ligar os terminais TX e RX cruzado de cada Arduino, e depois conecte cada arduino a um computador (ou ao mesmo se for caso, mas em portas diferentes).
 <center><img src="arduinos.jpeg"  style="float: center; margin: 0px 0px 10px 10px"></center>
@@ -34,6 +54,6 @@ Simultaneamente, abra outro terminal, em outro computador conectado ao arduino, 
 
 Assim, poderão ser simulados os casos de transmissão e recepção entre computadores ou portas diferentes, garantindo comunicação ou simulando casos de erro.
 
- <center><img src="groot.gif"  style="float: center; margin: 0px 0px 10px 10px"></center>
+ <center><img src="handshake.gif"  style="float: center; margin: 0px 0px 10px 10px"></center>
 
  ©Insper, 4° Semestre Engenharia da Computação, Camada Física da Computação.

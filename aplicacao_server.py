@@ -31,7 +31,7 @@ serialName = "COM5"                  # Windows(variacao de)
 jsonfile = "./files/recebido.json"
 pngfile = "./files/recebido.png"
 
-file = pngfile
+file = jsonfile
 class Server:
     def __init__(self,serialname):
         self.port = serialname
@@ -115,7 +115,7 @@ class Server:
             print(f"Recebi algo maior que os {self.sizepayload} bytes esperados...")
             print("Por favor reenvie...")
             print("------------------------------------------------------------\n")
-            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
+            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro",self.currentPack))
             self.com1.rx.clearBuffer()
             time.sleep(3)
         elif status=="packError":
@@ -125,27 +125,22 @@ class Server:
             print(f"Pacote esperado: {self.currentPack+1}")
             print("Por favor reenvie")
             print("---------------------------------------\n")
-            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro"))
+            self.com1.sendData(packagetool.Acknowledge().buildAcknowledge("erro",self.currentPack))
             self.com1.rx.clearBuffer()
             time.sleep(3)
 
     def check_current_Pack_is_Right(self):
         """Método verificação se o pacote informado no head corresponde ao esperado"""
-        if self.head[6]==self.currentPack:
-            return True
-        return False
+        return self.head[6]==self.currentPack
+            
 
     def check_EOP_in_right_place(self):
         """Método de verificação da posição do EOP"""
-        if self.eop == datagram.Datagram().EOP:
-            return True
-        return False
+        return self.eop == datagram.Datagram().EOP
 
     def check_if_is_the_last_pack(self):
         """Método de verificação se é o último pacote a ser receber"""
-        if self.head[5]==self.currentPack+1:
-            return True
-        return False
+        return self.head[5]==self.currentPack+1
 
     def mountFile(self):
         """Método de montagem dos bytes para formação do arquivo"""
