@@ -10,7 +10,7 @@ Implementação de um simulação client-server com envio e recebimento de açõ
 
 - HEAD: Tem tamanho fixo de 10 bytes e leva informações importantes a cerca do conteúdo (payload) deste pacote, informando seu tipo, origem, destino, tamanho de dados transportados e afins.
 
-- PAYLOAD: Tem tamanho entre 0 e 128 bytes e transporta uma fração do arquivo total a ser transferido
+- PAYLOAD: Tem tamanho entre 0 e 114 bytes e transporta uma fração do arquivo total a ser transferido
 
 - EOP: 4 bytes fixos que apresentam o final do datagrama.
 
