@@ -153,7 +153,8 @@ class Server:
         """Método main. Utiliza todos os métodos acima de maneira a cumprir o propósito do
         projeto"""
         if self.handShake()==True:
-            while True:
+            a = True
+            while a:
                 try:
                     print(f"Recebendo pacote n°{self.currentPack+1}...")
                     self.readHead()
